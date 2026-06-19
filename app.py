@@ -24,6 +24,9 @@ CORS(app)  # Allow the dashboard JS to hit the API from any origin (dev convenie
 # Switch to PostgreSQL by setting DATABASE_URL env var:
 #   export DATABASE_URL="postgresql://user:pass@localhost:5432/solar_db"
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///solar_telemetry.db")
+# Railway provides postgres:// but SQLAlchemy 2.x only accepts postgresql://
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
