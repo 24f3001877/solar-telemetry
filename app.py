@@ -30,9 +30,9 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db = SQLAlchemy(app)
 
 
-# ─────────────────────────────────────────────
+
 # Model — maps directly to a DB table
-# ─────────────────────────────────────────────
+
 class SolarTelemetry(db.Model):
     """
     One row per telemetry reading from a solar panel device.
@@ -64,9 +64,9 @@ class SolarTelemetry(db.Model):
         }
 
 
-# ─────────────────────────────────────────────
+
 # Routes
-# ─────────────────────────────────────────────
+
 
 @app.route("/")
 def dashboard():
@@ -224,9 +224,9 @@ def health_check():
     return jsonify({"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()})
 
 
-# ─────────────────────────────────────────────
+
 # Error Handlers
-# ─────────────────────────────────────────────
+
 @app.errorhandler(400)
 @app.errorhandler(422)
 def handle_bad_request(e):
@@ -241,9 +241,9 @@ def server_error(e):
     return jsonify({"error": "Internal server error."}), 500
 
 
-# ─────────────────────────────────────────────
+
 # Entry Point
-# ─────────────────────────────────────────────
+
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()

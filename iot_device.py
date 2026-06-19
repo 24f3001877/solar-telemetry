@@ -89,9 +89,9 @@ def generate_reading(device_id: str) -> dict:
     }
 
 
-# ─────────────────────────────────────────────
+
 # Transmission Loop
-# ─────────────────────────────────────────────
+
 def run(api_url: str, device_id: str, interval: int):
     print("─" * 55)
     print(f"  ☀  Solar IoT Simulator — {device_id}")
@@ -128,9 +128,9 @@ def run(api_url: str, device_id: str, interval: int):
         time.sleep(interval)
 
 
-# ─────────────────────────────────────────────
+
 # Entry Point
-# ─────────────────────────────────────────────
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Solar Panel IoT Simulator")
     parser.add_argument("--url",      default=DEFAULT_API_URL,  help="Flask API endpoint")
