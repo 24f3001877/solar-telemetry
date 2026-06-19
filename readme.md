@@ -2,7 +2,9 @@
 
 A cloud-native full-stack application that ingests, stores, and visualizes real-time telemetry from simulated solar panel IoT devices. Built to demonstrate backend API design, relational database ORM patterns, multi-device fleet monitoring, and live frontend data visualization.
 
-**[Live Demo →](https://your-app.railway.app)** 
+**[Live Demo →]
+https://github.com/user-attachments/assets/8b26dfba-de62-4081-8d40-9286aa6b2788
+** 
 
 ![Dashboard Screenshot](screenshot.png)
 
