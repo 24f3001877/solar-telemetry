@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SolarWatch — Asset Performance Monitor</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+
+  <style>
+    :root {
+      --bg-base:     #090E1A;
+      --bg-card:     #111827;
+      --border:      #1E293B;
+      --solar:       #F59E0B;
+      --power:       #10B981;
+      --volt:        #60A5FA;
+      --temp:        #F87171;
+      --irrad:       #A78BFA;
+      --danger:      #EF4444;
+      --text-primary:#F1F5F9;
+      --text-muted:  #64748B;
+      --text-label:  #94A3B8;
+      --font-display:'Space Grotesk', sans-serif;
+      --font-body:   'Inter', sans-serif;
+      --font-mono:   'JetBrains Mono', monospace;
+      --radius:      12px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { background: var(--bg-base); color: var(--text-primary); font-family: var(--font-body); font-size: 14px; min-height: 100vh; }
+
+    /* ── Nav ── */
+    .top-nav {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 28px; border-bottom: 1px solid var(--border);
+      background: var(--bg-card); flex-wrap: wrap; gap: 10px;
+    }
+    .brand { font-family: var(--font-display); font-weight: 700; font-size: 1.15rem; letter-spacing: -0.02em; color: var(--solar); display: flex; align-items: center; gap: 8px; }
+    .brand-sub { font-size: 0.65rem; font-weight: 400; color: var(--text-muted); letter-spacing: 0.08em; text-transform: uppercase; }
+
+    /* ── Device Selector ── */
+    .device-selector-wrap { position: relative; }
+    .device-selector {
+      background: var(--bg-base); border: 1px solid var(--border);
+      border-radius: 8px; padding: 0; min-width: 200px;
+      cursor: pointer; position: relative;
+    }
+    .device-selector-btn {
+      display: flex; align-items: center; gap: 8px;
+      padding: 7px 12px; font-family: var(--font-mono);
+      font-size: 0.75rem; font-weight: 600; color: var(--text-primary);
+      user-select: none;
+    }
+    .device-selector-btn .chevron { margin-left: auto; color: var(--text-muted); font-size: 0.7rem; transition: transform 0.2s; }
+    .device-selector.open .chevron { transform: rotate(180deg); }
+    .device-dropdown {
+      display: none; position: absolute; top: calc(100% + 6px); left: 0;
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 8px; min-width: 220px; z-index: 100;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5); overflow: hidden;
+    }
+    .device-selector.open .device-dropdown { display: block; }
+    .device-option {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 14px; font-family: var(--font-mono); font-size: 0.72rem;
+      cursor: pointer; transition: background 0.15s; border-bottom: 1px solid var(--border);
+    }
+    .device-option:last-child { border-bottom: none; }
+    .device-option:hover { background: rgba(255,255,255,0.04); }
+    .device-option.active { background: rgba(245,158,11,0.08); color: var(--solar); }
+    .device-option .dev-name { flex: 1; }
+    .device-option .dev-meta { font-size: 0.62rem; color: var(--text-muted); }
+    .no-devices-msg { padding: 14px; font-size: 0.75rem; color: var(--text-muted); text-align: center; }
+
+    /* ── Status Dots ── */
+    .status-dot {
+      width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+    }
+    .status-dot.online  { background: var(--power); animation: pulse-ring 1.8s ease-in-out infinite; }
+    .status-dot.offline { background: var(--danger); }
+    .status-dot.pending { background: var(--text-muted); }
+    @keyframes pulse-ring {
+      0%,100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.6); }
+      50%      { box-shadow: 0 0 0 5px rgba(16,185,129,0); }
+    }
+
+    /* ── Nav right pills ── */
+    .live-pill {
+      display: inline-flex; align-items: center; gap: 7px;
+      font-family: var(--font-mono); font-size: 0.7rem; font-weight: 600;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      border-radius: 999px; padding: 5px 12px; white-space: nowrap;
+      transition: all 0.3s;
+    }
+    .live-pill.online  { color: var(--power);    background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.25); }
+    .live-pill.offline { color: var(--danger);   background: rgba(239,68,68,0.08);  border: 1px solid rgba(239,68,68,0.25); }
+    .live-pill.pending { color: var(--text-muted); background: rgba(100,116,139,0.08); border: 1px solid rgba(100,116,139,0.25); }
+
+    /* ── Disconnection Banner ── */
+    .disconnect-banner {
+      display: none;
+      align-items: center; gap: 12px;
+      background: rgba(239,68,68,0.07);
+      border: 1px solid rgba(239,68,68,0.3);
+      border-radius: 10px; padding: 14px 18px;
+      margin-bottom: 20px; flex-wrap: wrap;
+    }
+    .disconnect-banner .db-icon { font-size: 1.2rem; color: var(--danger); flex-shrink: 0; }
+    .disconnect-banner .db-title { font-family: var(--font-display); font-weight: 700; font-size: 0.9rem; color: var(--danger); }
+    .disconnect-banner .db-detail { font-size: 0.78rem; color: var(--text-label); margin-top: 1px; }
+    .disconnect-banner .db-badge {
+      margin-left: auto; background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3);
+      border-radius: 6px; padding: 4px 10px; font-family: var(--font-mono);
+      font-size: 0.68rem; color: var(--danger); white-space: nowrap;
+    }
+    .stale-badge {
+      display: inline-block; font-family: var(--font-mono); font-size: 0.6rem;
+      letter-spacing: 0.06em; text-transform: uppercase;
+      background: rgba(239,68,68,0.15); color: var(--danger);
+      border-radius: 4px; padding: 2px 6px; margin-left: 6px; vertical-align: middle;
+    }
+
+    /* ── Temp Alert ── */
+    .alert-strip {
+      display: none; align-items: center; gap: 8px;
+      background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.3);
+      border-radius: 8px; padding: 10px 16px; font-size: 0.8rem; color: var(--temp);
+      margin-bottom: 14px;
+    }
+
+    /* ── Main Layout ── */
+    .main { padding: 24px 28px; max-width: 1380px; margin: 0 auto; }
+    .section-label { font-family: var(--font-mono); font-size: 0.65rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 12px; }
+
+    /* ── KPI Cards ── */
+    .kpi-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 22px; position: relative; overflow: hidden; transition: opacity 0.4s; }
+    .kpi-card.stale { opacity: 0.55; }
+    .kpi-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+    .kpi-card.kpi-power::before { background: var(--power); }
+    .kpi-card.kpi-volt::before  { background: var(--volt); }
+    .kpi-card.kpi-temp::before  { background: var(--temp); }
+    .kpi-card.kpi-irrad::before { background: var(--irrad); }
+    .kpi-label { font-family: var(--font-mono); font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; }
+    .kpi-value { font-family: var(--font-display); font-weight: 700; font-size: 2.1rem; letter-spacing: -0.03em; line-height: 1; }
+    .kpi-unit  { font-family: var(--font-body); font-weight: 400; font-size: 1rem; color: var(--text-muted); margin-left: 3px; }
+    .kpi-icon  { position: absolute; top: 18px; right: 18px; font-size: 1.3rem; opacity: 0.18; }
+    .kpi-delta { font-size: 0.7rem; color: var(--text-muted); margin-top: 6px; }
+
+    /* ── Chart Card ── */
+    .chart-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; }
+    .chart-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+    .chart-title  { font-family: var(--font-display); font-weight: 700; font-size: 1rem; letter-spacing: -0.02em; }
+    .chart-subtitle { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+    .legend-item { display: inline-flex; align-items: center; gap: 5px; font-size: 0.7rem; color: var(--text-label); }
+    .legend-dot  { width: 8px; height: 8px; border-radius: 50%; }
+
+    /* ── Device Info Panel ── */
+    .info-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; }
+    .info-row  { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 0.8rem; }
+    .info-row:last-child { border-bottom: none; }
+    .info-key  { color: var(--text-muted); font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.05em; }
+    .info-val  { font-family: var(--font-mono); font-size: 0.78rem; font-weight: 600; color: var(--text-primary); }
+
+    /* ── Fleet Status Panel ── */
+    .fleet-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 22px; }
+    .fleet-row  { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+    .fleet-row:last-child { border-bottom: none; }
+    .fleet-device { font-family: var(--font-mono); font-size: 0.75rem; font-weight: 600; flex: 1; }
+    .fleet-device.offline-dev { color: var(--text-muted); }
+    .fleet-meta { font-size: 0.68rem; color: var(--text-muted); font-family: var(--font-mono); }
+    .fleet-switch-btn {
+      background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.25);
+      color: var(--solar); font-size: 0.65rem; font-family: var(--font-mono);
+      border-radius: 5px; padding: 3px 8px; cursor: pointer;
+      transition: background 0.15s; white-space: nowrap;
+    }
+    .fleet-switch-btn:hover { background: rgba(245,158,11,0.2); }
+    .fleet-switch-btn.active-dev { background: rgba(16,185,129,0.1); border-color: rgba(16,185,129,0.25); color: var(--power); cursor: default; }
+
+    .readings-count { font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-muted); text-align: right; margin-top: 10px; }
+    .mono { font-family: var(--font-mono); }
+
+    @media (max-width: 768px) { .top-nav { padding: 12px 16px; } .main { padding: 16px; } .kpi-value { font-size: 1.6rem; } }
+  </style>
+</head>
+<body>
+
+  <!-- ── Top Nav ── -->
+  <nav class="top-nav">
+    <div>
+      <div class="brand"><i class="bi bi-sun-fill"></i>SolarWatch</div>
+      <div class="brand-sub">Asset Performance Monitor</div>
+    </div>
+
+    <!-- Device Selector -->
+    <div class="device-selector-wrap">
+      <div class="device-selector" id="deviceSelector">
+        <div class="device-selector-btn" id="deviceSelectorBtn">
+          <span class="status-dot pending" id="selectorDot"></span>
+          <span id="selectorLabel">Loading devices…</span>
+          <i class="bi bi-chevron-down chevron"></i>
+        </div>
+        <div class="device-dropdown" id="deviceDropdown">
+          <div class="no-devices-msg">Waiting for devices…</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex align-items-center gap-3">
+      <span class="mono" style="font-size:0.7rem;color:var(--text-muted)" id="lastUpdated">—</span>
+      <span class="live-pill pending" id="statusPill">
+        <span class="status-dot pending" id="pillDot"></span>
+        <span id="pillText">CONNECTING</span>
+      </span>
+    </div>
+  </nav>
+
+  <!-- ── Main ── -->
+  <main class="main">
+
+    <!-- Disconnection Banner -->
+    <div id="disconnectBanner" class="disconnect-banner">
+      <i class="bi bi-wifi-off db-icon"></i>
+      <div>
+        <div class="db-title" id="dbTitle">Device Offline</div>
+        <div class="db-detail" id="dbDetail">Showing last known values. Reconnect the IoT simulator to resume live data.</div>
+      </div>
+      <div class="db-badge" id="dbBadge">Signal lost 0s ago</div>
+    </div>
+
+    <!-- Temp Alert -->
+    <div id="alertStrip" class="alert-strip">
+      <i class="bi bi-exclamation-triangle-fill"></i>
+      <strong>ALERT:</strong>&nbsp;Panel temperature exceeds 70°C — thermal derating active.
+    </div>
+
+    <!-- KPI Section Label -->
+    <div class="section-label" id="sectionLabel">Live Telemetry — selecting device…</div>
+
+    <!-- KPI Cards -->
+    <div class="row g-3 mb-4">
+      <div class="col-6 col-md-3">
+        <div class="kpi-card kpi-power" id="cardPower">
+          <i class="bi bi-lightning-charge-fill kpi-icon" style="color:var(--power)"></i>
+          <div class="kpi-label">Power Output</div>
+          <div class="kpi-value" id="kpiPower" style="color:var(--power)">—<span class="kpi-unit">W</span></div>
+          <div class="kpi-delta" id="kpiPowerSub">Awaiting data…</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="kpi-card kpi-volt" id="cardVolt">
+          <i class="bi bi-speedometer2 kpi-icon" style="color:var(--volt)"></i>
+          <div class="kpi-label">Voltage</div>
+          <div class="kpi-value" id="kpiVolt" style="color:var(--volt)">—<span class="kpi-unit">V</span></div>
+          <div class="kpi-delta" id="kpiVoltSub">Awaiting data…</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="kpi-card kpi-temp" id="cardTemp">
+          <i class="bi bi-thermometer-half kpi-icon" style="color:var(--temp)"></i>
+          <div class="kpi-label">Panel Temp</div>
+          <div class="kpi-value" id="kpiTemp" style="color:var(--temp)">—<span class="kpi-unit">°C</span></div>
+          <div class="kpi-delta" id="kpiTempSub">Awaiting data…</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="kpi-card kpi-irrad" id="cardIrrad">
+          <i class="bi bi-brightness-high-fill kpi-icon" style="color:var(--irrad)"></i>
+          <div class="kpi-label">Irradiance</div>
+          <div class="kpi-value" id="kpiIrrad" style="color:var(--irrad)">—<span class="kpi-unit">W/m²</span></div>
+          <div class="kpi-delta" id="kpiIrradSub">Awaiting data…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart + Side Panels -->
+    <div class="row g-3">
+
+      <!-- Chart -->
+      <div class="col-12 col-lg-8">
+        <div class="chart-card">
+          <div class="chart-header">
+            <div>
+              <div class="chart-title">Performance Timeline</div>
+              <div class="chart-subtitle" id="chartSubtitle">Last 20 readings — updates every 5 seconds</div>
+            </div>
+            <div class="d-flex gap-3 flex-wrap">
+              <span class="legend-item"><span class="legend-dot" style="background:var(--power)"></span>Power (W)</span>
+              <span class="legend-item"><span class="legend-dot" style="background:var(--volt)"></span>Voltage (V)</span>
+              <span class="legend-item"><span class="legend-dot" style="background:var(--temp)"></span>Temp (°C)</span>
+            </div>
+          </div>
+          <div style="position:relative;height:300px"><canvas id="telemetryChart"></canvas></div>
+          <div class="readings-count" id="readingsCount">0 readings</div>
+        </div>
+      </div>
+
+      <!-- Right side panels -->
+      <div class="col-12 col-lg-4 d-flex flex-column gap-3">
+
+        <!-- Device Info -->
+        <div class="info-card">
+          <div class="section-label mb-3">Device Registry</div>
+          <div class="info-row"><span class="info-key">Device ID</span><span class="info-val" id="infoDeviceId" style="color:var(--solar)">—</span></div>
+          <div class="info-row"><span class="info-key">Location</span><span class="info-val">Austin, Texas</span></div>
+          <div class="info-row"><span class="info-key">Panel Type</span><span class="info-val">Mono PERC</span></div>
+          <div class="info-row"><span class="info-key">Rated Power</span><span class="info-val">600 W</span></div>
+          <div class="info-row"><span class="info-key">Protocol</span><span class="info-val">HTTP/JSON</span></div>
+          <div class="info-row"><span class="info-key">Connection</span><span class="info-val" id="infoConnection" style="color:var(--text-muted)">—</span></div>
+          <div class="info-row"><span class="info-key">Last Seen</span><span class="info-val" id="infoLastSeen">—</span></div>
+          <div class="info-row"><span class="info-key">Efficiency</span><span class="info-val" id="infoEfficiency">—</span></div>
+          <div class="info-row"><span class="info-key">Total Readings</span><span class="info-val" id="infoTotalReadings">—</span></div>
+        </div>
+
+        <!-- Fleet Status -->
+        <div class="fleet-card">
+          <div class="section-label mb-3">Fleet Status</div>
+          <div id="fleetList"><div style="font-size:0.75rem;color:var(--text-muted)">No devices registered yet.</div></div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // ─── State ───────────────────────────────────────────────────────
+    let selectedDevice  = null;
+    let deviceStatuses  = {};   // device_id → status object from /api/devices/status
+    let isOffline       = false;
+    let offlineSince    = null;
+
+    // ─── Chart Setup ─────────────────────────────────────────────────
+    const ctx = document.getElementById('telemetryChart').getContext('2d');
+    function makeGrad(color) {
+      const g = ctx.createLinearGradient(0, 0, 0, 300);
+      g.addColorStop(0, color + '33'); g.addColorStop(1, color + '00'); return g;
+    }
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [
+          { label: 'Power (W)',  data: [], borderColor: '#10B981', backgroundColor: makeGrad('#10B981'), borderWidth: 2, pointRadius: 3, pointHoverRadius: 6, tension: 0.4, fill: true,  yAxisID: 'yPower' },
+          { label: 'Voltage (V)',data: [], borderColor: '#60A5FA', backgroundColor: 'transparent',       borderWidth: 1.5, pointRadius: 2, pointHoverRadius: 5, tension: 0.4, fill: false, yAxisID: 'yVolt', borderDash: [4,3] },
+          { label: 'Temp (°C)', data: [], borderColor: '#F87171', backgroundColor: makeGrad('#F87171'), borderWidth: 2, pointRadius: 3, pointHoverRadius: 6, tension: 0.4, fill: true,  yAxisID: 'yTemp' },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#1E293B', borderColor: '#334155', borderWidth: 1,
+            titleColor: '#94A3B8', bodyColor: '#F1F5F9', padding: 12,
+            callbacks: {
+              label: c => {
+                const u = ['W','V','°C']; return `  ${c.dataset.label.split(' ')[0]}: ${c.parsed.y.toFixed(1)} ${u[c.datasetIndex]}`;
+              }
+            }
+          }
+        },
+        scales: {
+          x:      { grid: { color: '#1E293B' }, ticks: { color: '#64748B', maxTicksLimit: 7, font: { family: 'JetBrains Mono', size: 11 } } },
+          yPower: { type: 'linear', position: 'left', grid: { color: '#1E293B' }, ticks: { color: '#10B981', font: { family: 'JetBrains Mono', size: 11 }, callback: v => `${v}W` }, title: { display: true, text: 'Power (W)', color: '#10B981', font: { size: 11 } } },
+          yVolt:  { type: 'linear', position: 'right', display: true, grid: { drawOnChartArea: false }, ticks: { color: '#60A5FA', font: { family: 'JetBrains Mono', size: 11 }, callback: v => `${v}V` }, title: { display: true, text: 'Voltage (V)', color: '#60A5FA', font: { size: 11 } } },
+          yTemp:  { type: 'linear', position: 'right', display: false },
+        }
+      }
+    });
+
+    // ─── Helpers ─────────────────────────────────────────────────────
+    function fmtTime(iso) {
+      return new Date(iso).toLocaleTimeString('en-US', { hour12: false, hour:'2-digit', minute:'2-digit', second:'2-digit' });
+    }
+    function setKPI(id, val, subId, sub) {
+      document.getElementById(id).childNodes[0].textContent = val;
+      document.getElementById(subId).textContent = sub;
+    }
+
+    // ─── Connection State UI ─────────────────────────────────────────
+    function applyConnectionState(online, secondsAgo) {
+      const pill    = document.getElementById('statusPill');
+      const pillDot = document.getElementById('pillDot');
+      const pillTxt = document.getElementById('pillText');
+      const banner  = document.getElementById('disconnectBanner');
+      const cards   = ['cardPower','cardVolt','cardTemp','cardIrrad'];
+      const selDot  = document.getElementById('selectorDot');
+
+      if (online) {
+        // ── ONLINE ──
+        isOffline   = false;
+        offlineSince = null;
+        pill.className = 'live-pill online';
+        pillDot.className = 'status-dot online';
+        pillTxt.textContent = 'LIVE';
+        selDot.className    = 'status-dot online';
+        banner.style.display = 'none';
+        cards.forEach(id => document.getElementById(id).classList.remove('stale'));
+
+        document.getElementById('infoConnection').textContent  = 'ONLINE';
+        document.getElementById('infoConnection').style.color  = 'var(--power)';
+        document.getElementById('infoLastSeen').textContent    = 'Just now';
+
+      } else {
+        // ── OFFLINE ──
+        if (!isOffline) offlineSince = Date.now();
+        isOffline = true;
+
+        pill.className = 'live-pill offline';
+        pillDot.className = 'status-dot offline';
+        pillTxt.textContent = 'OFFLINE';
+        selDot.className = 'status-dot offline';
+
+        const elapsed = secondsAgo != null ? `${Math.round(secondsAgo)}s` : '—';
+        document.getElementById('dbTitle').textContent   = `${selectedDevice} — Signal Lost`;
+        document.getElementById('dbBadge').textContent   = `Signal lost ${elapsed} ago`;
+        banner.style.display = 'flex';
+        cards.forEach(id => document.getElementById(id).classList.add('stale'));
+
+        document.getElementById('infoConnection').textContent = 'OFFLINE';
+        document.getElementById('infoConnection').style.color = 'var(--danger)';
+        document.getElementById('infoLastSeen').textContent   = secondsAgo != null ? `${Math.round(secondsAgo)}s ago` : '—';
+      }
+    }
+
+    // ─── Device Selector ─────────────────────────────────────────────
+    const selector = document.getElementById('deviceSelector');
+    document.getElementById('deviceSelectorBtn').addEventListener('click', e => {
+      e.stopPropagation();
+      selector.classList.toggle('open');
+    });
+    document.addEventListener('click', () => selector.classList.remove('open'));
+
+    function buildDropdown(statuses) {
+      const dd = document.getElementById('deviceDropdown');
+      if (!statuses.length) { dd.innerHTML = '<div class="no-devices-msg">No devices registered yet.</div>'; return; }
+      dd.innerHTML = statuses.map(d => `
+        <div class="device-option${d.device_id === selectedDevice ? ' active' : ''}"
+             onclick="switchDevice('${d.device_id}')">
+          <span class="status-dot ${d.online ? 'online' : 'offline'}"></span>
+          <div>
+            <div class="dev-name">${d.device_id}</div>
+            <div class="dev-meta">${d.online ? 'Live' : `Offline · ${Math.round(d.seconds_ago)}s ago`} · ${d.total_readings} readings</div>
+          </div>
+        </div>`).join('');
+    }
+
+    function buildFleet(statuses) {
+      const fl = document.getElementById('fleetList');
+      if (!statuses.length) { fl.innerHTML = '<div style="font-size:0.75rem;color:var(--text-muted)">No devices yet.</div>'; return; }
+      fl.innerHTML = statuses.map(d => `
+        <div class="fleet-row">
+          <span class="status-dot ${d.online ? 'online' : 'offline'}"></span>
+          <span class="fleet-device ${d.online ? '' : 'offline-dev'}">${d.device_id}</span>
+          <span class="fleet-meta">${d.online ? 'Live' : `${Math.round(d.seconds_ago)}s ago`}</span>
+          <button class="fleet-switch-btn ${d.device_id === selectedDevice ? 'active-dev' : ''}"
+                  onclick="${d.device_id === selectedDevice ? '' : `switchDevice('${d.device_id}')`}">
+            ${d.device_id === selectedDevice ? 'Viewing' : 'Switch'}
+          </button>
+        </div>`).join('');
+    }
+
+    function switchDevice(deviceId) {
+      if (deviceId === selectedDevice) return;
+      selectedDevice = deviceId;
+      selector.classList.remove('open');
+      document.getElementById('selectorLabel').textContent = deviceId;
+      document.getElementById('sectionLabel').textContent  = `Live Telemetry — ${deviceId} · Austin, TX`;
+      document.getElementById('infoDeviceId').textContent  = deviceId;
+      document.getElementById('chartSubtitle').textContent = `Last 20 readings from ${deviceId} — updates every 5s`;
+      // Clear chart immediately on switch
+      chart.data.labels = []; chart.data.datasets.forEach(d => d.data = []); chart.update('none');
+      fetchTelemetry();
+    }
+
+    // ─── Poll: Device Statuses ────────────────────────────────────────
+    async function fetchDeviceStatuses() {
+      try {
+        const resp = await fetch('/api/devices/status');
+        if (!resp.ok) return;
+        const json = await resp.json();
+        const statuses = json.devices || [];
+
+        // Update global map
+        deviceStatuses = {};
+        statuses.forEach(d => deviceStatuses[d.device_id] = d);
+
+        // Auto-select first device if none selected
+        if (!selectedDevice && statuses.length > 0) {
+          switchDevice(statuses[0].device_id);
+        }
+
+        buildDropdown(statuses);
+        buildFleet(statuses);
+
+        // Connection state for selected device
+        if (selectedDevice && deviceStatuses[selectedDevice]) {
+          const s = deviceStatuses[selectedDevice];
+          applyConnectionState(s.online, s.seconds_ago);
+        }
+
+      } catch(err) {
+        console.warn('Status fetch error:', err.message);
+      }
+    }
+
+    // ─── Poll: Telemetry Data ─────────────────────────────────────────
+    async function fetchTelemetry() {
+      if (!selectedDevice) return;
+      try {
+        const resp = await fetch(`/api/telemetry/latest?limit=20&device_id=${selectedDevice}`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const json = await resp.json();
+        const data = json.data || [];
+        if (!data.length) return;
+
+        // Update chart
+        chart.data.labels           = data.map(r => fmtTime(r.timestamp));
+        chart.data.datasets[0].data = data.map(r => r.power_output_w);
+        chart.data.datasets[1].data = data.map(r => r.voltage);
+        chart.data.datasets[2].data = data.map(r => r.temperature_c);
+        chart.update('none');
+
+        // KPI
+        const latest   = data[data.length - 1];
+        const powerPct = ((latest.power_output_w / 600) * 100).toFixed(1);
+        const tempWarn = latest.temperature_c > 70;
+
+        setKPI('kpiPower', latest.power_output_w.toFixed(1), 'kpiPowerSub', `${powerPct}% of rated 600W`);
+        setKPI('kpiVolt',  latest.voltage.toFixed(1),        'kpiVoltSub',  `Rated: 240V  |  Δ ${(latest.voltage-240).toFixed(1)}V`);
+        setKPI('kpiTemp',  latest.temperature_c.toFixed(1),  'kpiTempSub',  tempWarn ? '⚠ High — derating active' : 'Normal operating range');
+        const irradVal = latest.irradiance_wm2 ? latest.irradiance_wm2.toFixed(0) : '—';
+        setKPI('kpiIrrad', irradVal, 'kpiIrradSub', 'Peak STC: 1000 W/m²');
+
+        document.getElementById('alertStrip').style.display = tempWarn ? 'flex' : 'none';
+        document.getElementById('infoEfficiency').textContent    = `${powerPct}%`;
+        document.getElementById('infoTotalReadings').textContent = json.count || data.length;
+        document.getElementById('readingsCount').textContent     = `${data.length} readings displayed`;
+        document.getElementById('lastUpdated').textContent       = `Updated ${fmtTime(latest.timestamp)}`;
+
+      } catch(err) {
+        console.warn('Telemetry fetch error:', err.message);
+      }
+    }
+
+    // ─── Boot ─────────────────────────────────────────────────────────
+    // Stagger the two polls slightly so they don't fire at the same tick
+    fetchDeviceStatuses();
+    setTimeout(fetchTelemetry, 500);
+
+    setInterval(fetchDeviceStatuses, 5000);
+    setInterval(fetchTelemetry, 5000);
+  </script>
+</body>
+</html>
